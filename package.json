@@ -1,0 +1,25 @@
+{
+  "name": "eldermud",
+  "private": true,
+  "version": "0.0.0",
+  "description": "A text based mud",
+  "keywords": [],
+  "dependencies": {
+    "backbone": "1.3.3",
+    "socket.io": "2.1.1",
+    "socket.io-client": "2.1.1"
+  },
+  "scripts": {
+    "start": "node app.js"
+  },
+  "main": "app.js",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/coderich/eldermud.git"
+  },
+  "author": "coderich",
+  "license": "",
+  "engines": {
+    "node": ">=10.7"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "1",
+  "name": "Ban",
+  "module": {
+    "id": "atlanta",
+    "room": "1"
+  }
+}
