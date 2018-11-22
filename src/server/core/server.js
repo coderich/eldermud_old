@@ -1,48 +1,30 @@
 const SocketIO = require('socket.io');
-const CoreStream = require('./stream');
+const Realm = require('./realm');
 
 module.exports = class Server {
   constructor(options = {}) {
-    this.IO = new SocketIO(options);
     this.started = false;
-    this.connections = new Set();
-    this.namespaces = new Set();
-    this.streams = new Set();
+    this.realms = new Set();
+    this.IO = new SocketIO(options);
   }
 
-  createRealm(namespace, options) {
-    if (!namespace) throw new Error('Server.createRealm requires a namespace');
-    if (this.namespaces.has(namespace)) throw new Error(`Server.createRealm namespace "${namespace}" already in use`);
-    // return new CoreStream(this.IO, namespace, options);
-  }
+  addRealm(namespace, options) {
+    if (!namespace) throw new Error('Server.addRealm requires a namespace');
+    if (this.realms.has(namespace)) throw new Error(`Server.addRealm namespace "${namespace}" already in use`);
 
-  destroyRealm() {
-
-  }
-
-  createStream(name, options = {}) {
-    if (this.started) throw new Error('Server.createStream must be called before the server has started');
-    this.streams.add({ name, options });
+    this.realms.add(namespace);
+    return new Realm(this.IO, namespace, options);
   }
 
   start(port, options = {}) {
     if (!port) throw new Error('Server.start must specify a port');
     if (this.started) return; this.started = true;
 
-    this.IO.attach(port, options).on('connection', socket => {
-      // Attach streams to socket
-      socket.streams = [...this.streams].reduce((prev, curr) => {
-        prev[curr.name] = new CoreStream(curr.options);
-        return prev;
-      }, {});
+    this.IO.attach(port, options).on('connection', (socket) => {
+      // console.log(Object.keys(this.IO.of('/').connected));
+      socket.client.streams = {};
 
-      socket.on('intent', (intent) => {
-
-      });
-
-      // Handle disconnect
       socket.on('disconnect', (reason) => {
-        console.log('disconnect');
       });
 
       // socket.emit('request', { type: 'auth' }, (res) => {

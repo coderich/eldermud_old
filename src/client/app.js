@@ -1,39 +1,42 @@
+const IO = require('socket.io-client');
 const Readline = require('readline');
-const ReadInterface = Readline.createInterface({ input: process.stdin, output: process.stdout });
-const SocketClient = require('socket.io-client')('http://localhost:3000');
 
+const ReadInterface = Readline.createInterface({ input: process.stdin, output: process.stdout });
+const ServerIO = IO('http://localhost:3000');
+const ChatIO = IO('http://localhost:3000/chat');
 
 const userAction = () => {
   ReadInterface.question('> ', (cmd) => {
-    SocketClient.emit('cmd', cmd);
+    ChatIO.emit('intent', {
+      intent: 'say',
+      stream: 'chat',
+      payload: {
+        text: cmd,
+      },
+    });
+
     userAction();
   });
 };
 
-SocketClient.on('connect', () => {
+ServerIO.on('connect', () => {
   userAction();
 });
 
-SocketClient.on('reconnect', () => {
+ServerIO.on('reconnect', () => {
 });
 
-SocketClient.on('disconnect', (reason) => {
+ServerIO.on('disconnect', (reason) => {
   if (reason === 'io server disconnect') {
     // Need to manually re-connect
   }
 });
 
-
-// A request expects a response (via cb)
-SocketClient.on('request', (event, cb) => {
-  cb();
-});
-
-SocketClient.on('data', (event) => {
-
-});
-
-SocketClient.on('info', (event) => {
+ServerIO.on('info', (event) => {
   console.log(event.message);
 });
 
+
+ChatIO.on('data', (event) => {
+  console.log(event);
+});
