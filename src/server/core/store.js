@@ -26,11 +26,19 @@ module.exports = class Store {
     });
   }
 
+  getStore() {
+    return this.store.getStore();
+  }
+
   dispatch(action) {
     this.store.dispatch(action);
   }
 
-  subscribe(key, cb) {
+  subscribe(cb) {
+    return this.store.subscribe(cb);
+  }
+
+  subscribeTo(key, cb) {
     if (Object.prototype.hasOwnProperty.call(this.subscribers, key)) {
       this.subscribers[key].push(cb);
     } else {
