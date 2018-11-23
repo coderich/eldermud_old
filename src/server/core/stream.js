@@ -27,24 +27,24 @@ module.exports = class Stream {
     this.listeners[event].delete(fn);
   }
 
-  async process(userId, action) {
+  async process(userId, intent) {
     this.queues[userId] = this.queues[userId] || [];
     if (this.queues[userId].length > this.options.queueSize) return;
-    this.queues[userId].push(action);
+    this.queues[userId].push(intent);
 
     // Listeners which may want to prevent this intent from becoming an action
-    const auth = [...this.listeners[`auth::${action.type}`] || new Set()].reduce((prev, fn) => {
-      return prev && fn(userId, action.payload);
+    const auth = [...this.listeners[`auth::${intent.type}`] || new Set()].reduce((prev, fn) => {
+      return prev && fn(userId, intent.payload);
     }, true);
 
     if (auth) {
       // Listeners responsible preparing/altering the payload (which becomes the action)
-      const payload = [...this.listeners[`prep::${action.type}`] || new Set()].reduce((prev, fn) => {
-        return fn(userId, action.payload, prev);
-      }, Object.assign({}, action.payload));
+      const payload = [...this.listeners[`prep::${intent.type}`] || new Set()].reduce((prev, fn) => {
+        return fn(userId, intent.payload, prev);
+      }, Object.assign({}, intent.payload));
 
       // Listeners responsible for performing the action (async and in parallel. eg. Move & Save Position)
-      await Promise.all([...this.listeners[`do::${action.type}`] || new Set()].map(fn => fn(userId, payload)));
+      await Promise.all([...this.listeners[`do::${intent.type}`] || new Set()].map(fn => fn(userId, payload)));
     }
 
     this.queues[userId].shift();

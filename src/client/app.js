@@ -20,7 +20,7 @@ ServerIO.on('request', (event, cb) => {
 
 const userAction = () => {
   ReadInterface.question('> ', (text) => {
-    EldermudIO.emit('intent', { type: 'text', payload: { text } });
+    EldermudIO.emit('input', { type: 'text', payload: { text } });
     userAction();
   });
 };
@@ -29,6 +29,12 @@ EldermudIO.on('connect', () => {
   userAction();
 });
 
-EldermudIO.on('data', (event) => {
-  console.log(event);
+EldermudIO.on('output', (event) => {
+  switch (event.type.toLowerCase()) {
+    case 'info':
+      console.log(event.payload.text);
+      break;
+    default:
+      break;
+  }
 });
