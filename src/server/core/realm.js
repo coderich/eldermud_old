@@ -3,18 +3,14 @@ const CoreStream = require('./stream');
 module.exports = class Realm {
   constructor(IO, namespace, options = {}) {
     this.streams = {};
+    this.listeners = [];
     this.namespace = namespace;
 
     this.realm = IO.of(`/${namespace}`).on('connection', (socket) => {
-      socket.streams = {};
-
       socket.on('intent', (intent) => {
-        const streamName = intent.stream;
-
-        // Ensure stream definition exists and is created
-        if (!this.streams[streamName]) throw new Error(`Stream "${streamName}" not found in Realm "${this.namespace}"`);
-
-        this.streams[streamName].process(socket.id, intent);
+        this.listeners.map(listener => listener(intent)).forEach((action) => {
+          this.streams[action.stream].process(socket.id, action);
+        });
       });
 
       socket.on('disconnect', (reason) => {
@@ -23,10 +19,14 @@ module.exports = class Realm {
     });
   }
 
+  subscribe(listener) {
+    this.listeners.push(listener);
+    return () => { this.listeners = this.listeners.filter(l => l !== listener); }; // unsubscribe
+  }
+
   addStream(name, options) {
-    const stream = new CoreStream(options);
-    this.streams[name] = stream;
-    return stream;
+    this.streams[name] = new CoreStream(options);
+    return this.streams[name];
   }
 
   broadcast(message) {

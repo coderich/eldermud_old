@@ -3,24 +3,16 @@ const Readline = require('readline');
 
 const ReadInterface = Readline.createInterface({ input: process.stdin, output: process.stdout });
 const ServerIO = IO('http://localhost:3000');
-const ChatIO = IO('http://localhost:3000/chat');
+const EldermudIO = IO('http://localhost:3000/eldermud');
 
 const userAction = () => {
-  ReadInterface.question('> ', (cmd) => {
-    ChatIO.emit('intent', {
-      intent: 'say',
-      stream: 'chat',
-      payload: {
-        text: cmd,
-      },
-    });
-
+  ReadInterface.question('> ', (text) => {
+    EldermudIO.emit('intent', { type: 'text', payload: { text } });
     userAction();
   });
 };
 
 ServerIO.on('connect', () => {
-  userAction();
 });
 
 ServerIO.on('reconnect', () => {
@@ -32,11 +24,11 @@ ServerIO.on('disconnect', (reason) => {
   }
 });
 
-ServerIO.on('info', (event) => {
-  console.log(event.message);
+
+EldermudIO.on('connect', () => {
+  userAction();
 });
 
-
-ChatIO.on('data', (event) => {
+EldermudIO.on('data', (event) => {
   console.log(event);
 });
