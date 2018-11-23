@@ -7,7 +7,9 @@
   "dependencies": {
     "socket.io": "2.1.x",
     "socket.io-client": "2.1.x",
-    "redux": "4.0.x"
+    "redux": "4.0.x",
+    "rxjs": "6.3.x",
+    "lodash": "4.17.x"
   },
   "devDependencies": {
     "eslint": "4.19.1",

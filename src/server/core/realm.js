@@ -1,3 +1,4 @@
+const Store = require('./store');
 const CoreStream = require('./stream');
 
 module.exports = class Realm {
@@ -22,6 +23,10 @@ module.exports = class Realm {
   subscribe(listener) {
     this.listeners.push(listener);
     return () => { this.listeners = this.listeners.filter(l => l !== listener); }; // unsubscribe
+  }
+
+  createStore(reducers) { // eslint-disable-line
+    return new Store(reducers);
   }
 
   addStream(name, options) {
