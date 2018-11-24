@@ -17,7 +17,6 @@ const getDefaultInfo = (path) => {
       absolutePath: path,
       relativePath: path.substr(appPath.length),
       get realmName() { return this.relativePath.split('/')[1]; },
-      get streamName() { return this.relativePath.split('/')[2]; },
       get subject() { return this.relativePath.split('/').pop(); },
     };
   } catch (e) {
@@ -59,19 +58,6 @@ const makeStore = () => {
       }
     },
 
-    streams: (state = [], action) => {
-      const { realmName, streamName, subject } = getDefaultInfo(action.payload);
-
-      switch (`${action.type}-${subject}`) {
-        case `addDir-${streamName}`:
-          return [...state, { streamName, realmName }];
-        case `unlinkDir-${streamName}`:
-          return _.filter(state, { streamName });
-        default:
-          return state;
-      }
-    },
-
     translators: (state = [], action) => {
       const { absolutePath, realmName, subject } = getDefaultInfo(action.payload);
 
@@ -103,15 +89,15 @@ const makeStore = () => {
     },
 
     listeners: (state = [], action) => {
-      const { absolutePath, streamName, realmName, subject } = getDefaultInfo(action.payload); // eslint-disable-line
+      const { absolutePath, realmName, subject } = getDefaultInfo(action.payload);
 
       switch (`${action.type}-${subject}`) {
         case 'add-listeners.js':
-          return [...state, { realmName, streamName, listener: requireModule(absolutePath) }];
+          return [...state, { realmName, listeners: requireModule(absolutePath) }];
         case 'unlink-listeners.js':
-          return _.filter(state, { realmName, streamName });
+          return _.filter(state, { realmName });
         case 'change-listeners.js':
-          return [..._.filter(state, { realmName, streamName }), { realmName, streamName, listener: requireModule(absolutePath) }];
+          return [..._.filter(state, { realmName }), { realmName, listeners: requireModule(absolutePath) }];
         default:
           return state;
       }
@@ -142,7 +128,7 @@ const start = () => {
   store.subscribeTo('app', (newVal, oldVal) => {
     if (newVal === 'ready') {
       try {
-        const { config, realms, translators, reducers, streams, listeners } = store.getState(); // eslint-disable-line
+        const { config, realms, translators, reducers, listeners } = store.getState(); // eslint-disable-line
 
         // Validation
         if (!config) throw new Error('No configuration file found');
@@ -152,23 +138,26 @@ const start = () => {
           try {
             const translator = _.get(_.find(translators, { realmName }), 'translator');
             const reducer = _.get(_.find(reducers, { realmName }), 'reducers');
+            const listener = _.get(_.find(listeners, { realmName }), 'listeners');
 
             // Validation
             if (!reducer) throw new Error(`No reducers found for realm "${realmName}"`);
             if (!translator) throw new Error(`No translator found for realm "${realmName}"`);
+            if (!listener) throw new Error(`No listener found for realm "${realmName}"`);
 
             // Create Realm
             const realm = new Realm();
+            const streamListeners = listener(realm);
             realm.setTranslator(translator(realm));
             realm.start(realmName, server, reducer(realm));
 
             // Add Streams
-            _.filter(streams, { realmName }).forEach(({ streamName }) => {
-              const stream = realm.addStream(streamName, _.get(config, `streams.${streamName}`));
+            (config.streams || []).forEach(({ name: streamName, options }) => {
+              const stream = realm.addStream(streamName, options);
 
               // Add Stream Listeners
-              _.filter(listeners, { realmName, streamName }).forEach(({ listener }) => {
-                unsubscribes = Object.entries(listener(realm)).map(([key, cb]) => stream.subscribeTo(key, cb));
+              Object.entries(streamListeners[streamName]).forEach(([key, cb]) => {
+                unsubscribes.push(stream.subscribeTo(key, cb));
               });
             });
           } catch (e) {

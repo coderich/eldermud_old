@@ -39,17 +39,12 @@ module.exports = class Realm {
     this.realm.emit('output', message);
   }
 
-  broadcastTo(socketId, message) {
-    this.realm.to(socketId).emit('output', message);
-    // if (this.realm.connected[socketId]) this.realm.connected[socketId].emit('output', message);
+  broadcastTo(socketIds, message) {
+    (Array.isArray(socketIds) ? socketIds : [socketIds]).forEach(sid => this.realm.to(sid).emit('output', message));
   }
 
   broadcastFrom(socketId, message) {
     this.realm.connected[socketId].broadcast.emit('output', message);
-    // Object.keys(this.realm.connected).forEach((sid) => {
-    //   const socket = this.realm.connected[sid];
-    //   if (socket.id !== socketId) socket.emit('output', message);
-    // });
   }
 
   start(namespace, server, reducers) {

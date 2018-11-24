@@ -2,9 +2,15 @@
   "server": {
     "port": 3000
   },
-  "streams": {
-    "combat": {
-      "queueSize": 2
+  "streams": [
+    {
+      "name": "chat"
+    },
+    {
+      "name": "combat",
+      "options": {
+        "queueSize": 2
+      }
     }
-  }
+  ]
 }
