@@ -32,14 +32,16 @@ const makeStore = () => {
       return state;
     },
 
-    config: (state = null, action) => {
-      const { absolutePath, subject } = getDefaultInfo(action.payload);
+    configs: (state = [], action) => {
+      const { absolutePath, realmName, subject } = getDefaultInfo(action.payload);
 
       switch (`${action.type}-${subject}`) {
-        case 'add-config.json': case 'change-config.json':
-          return JSON.parse(FS.readFileSync(absolutePath));
+        case 'add-config.json':
+          return [...state, { realmName, config: JSON.parse(FS.readFileSync(absolutePath)) }];
         case 'unlink-config.json':
-          return {};
+          return _.filter(state, { realmName });
+        case 'change-config.json':
+          return [..._.filter(state, { realmName }), { realmName, config: JSON.parse(FS.readFileSync(absolutePath)) }];
         default:
           return state;
       }
@@ -120,27 +122,26 @@ const watch = (store) => {
 };
 
 const start = () => {
-  let unsubscribes = [];
-  const server = new Server();
+  let [servers, unsubscribes] = [[], []];
   const store = makeStore();
   const watcher = watch(store);
 
   store.subscribeTo('app', (newVal, oldVal) => {
     if (newVal === 'ready') {
       try {
-        const { config, realms, translators, reducers, listeners } = store.getState(); // eslint-disable-line
-
-        // Validation
-        if (!config) throw new Error('No configuration file found');
+        const { configs, realms, translators, reducers, listeners } = store.getState(); // eslint-disable-line
 
         // Realms
         realms.forEach((realmName) => {
           try {
+            const server = new Server();
+            const config = _.get(_.find(configs, { realmName }), 'config');
             const translator = _.get(_.find(translators, { realmName }), 'translator');
             const reducer = _.get(_.find(reducers, { realmName }), 'reducers');
             const listener = _.get(_.find(listeners, { realmName }), 'listeners');
 
             // Validation
+            if (!config) throw new Error(`No config found for realm "${realmName}"`);
             if (!reducer) throw new Error(`No reducers found for realm "${realmName}"`);
             if (!translator) throw new Error(`No translator found for realm "${realmName}"`);
             if (!listener) throw new Error(`No listener found for realm "${realmName}"`);
@@ -160,20 +161,21 @@ const start = () => {
                 unsubscribes.push(stream.subscribeTo(key, cb));
               });
             });
+
+            // Start the server
+            servers.push(server);
+            server.start(config.server.port);
           } catch (e) {
             Logger.error(e);
           }
         });
 
-        // Start the server
-        server.start(config.server.port);
-
         // Listene for state change; rinse and repeat
         store.subscribe(() => {
-          unsubscribes.forEach(unsubscribe => unsubscribe());
-          server.stop();
           watcher.close();
-          unsubscribes = [];
+          unsubscribes.forEach(unsubscribe => unsubscribe());
+          servers.forEach(server => server.stop());
+          servers = []; unsubscribes = [];
           start();
         });
       } catch (e) {
