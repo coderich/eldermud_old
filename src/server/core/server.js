@@ -1,5 +1,6 @@
 const _ = require('lodash');
 const SocketIO = require('socket.io');
+const Logger = require('./logger');
 const Realm = require('./realm');
 const Store = require('./store');
 
@@ -37,36 +38,39 @@ module.exports = class Server {
   }
 
   async start(port, options = {}) {
-    if (!port) throw new Error('Server.start must specify a port');
-    if (this.started) return; this.started = true;
+    if (!port) Logger.error(new Error('Server.start must specify a port'));
 
-    this.IO.attach(port, options).on('connection', (socket) => {
-      this.store.dispatch({
-        type: 'CLIENT_CONNECT',
-        payload: { clientId: socket.client.id },
-      });
+    if (port && !this.started) {
+      this.started = true;
 
-      socket.emit('request', { type: 'auth' }, (res) => {
+      this.IO.attach(port, options).on('connection', (socket) => {
         this.store.dispatch({
-          type: 'CLIENT_LOGIN',
-          payload: { clientId: socket.client.id, user: { id: res } },
-        });
-      });
-
-      socket.on('logout', (reason) => {
-        this.store.dispatch({
-          type: 'CLIENT_LOGOUT',
+          type: 'CLIENT_CONNECT',
           payload: { clientId: socket.client.id },
         });
-      });
 
-      socket.on('disconnect', (reason) => {
-        this.store.dispatch({
-          type: 'CLIENT_DISCONNECT',
-          payload: { clientId: socket.client.id },
+        socket.emit('request', { type: 'auth' }, (res) => {
+          this.store.dispatch({
+            type: 'CLIENT_LOGIN',
+            payload: { clientId: socket.client.id, user: { id: res } },
+          });
+        });
+
+        socket.on('logout', (reason) => {
+          this.store.dispatch({
+            type: 'CLIENT_LOGOUT',
+            payload: { clientId: socket.client.id },
+          });
+        });
+
+        socket.on('disconnect', (reason) => {
+          this.store.dispatch({
+            type: 'CLIENT_DISCONNECT',
+            payload: { clientId: socket.client.id },
+          });
         });
       });
-    });
+    }
   }
 
   async stop() {

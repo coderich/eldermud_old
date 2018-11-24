@@ -12,9 +12,9 @@ module.exports = (realm) => {
     },
 
     'do::unknown': async (userId, payload) => {
-      realm.broadcastTo(userId, {
+      realm.broadcastFrom(userId, {
         type: 'info',
-        payload: { text: payload.text },
+        payload: { text: `${payload.text}` },
       });
     },
   };

@@ -10,7 +10,8 @@
     "redux": "4.0.x",
     "rxjs": "6.3.x",
     "lodash": "4.17.x",
-    "chokidar": "2.0.4"
+    "chokidar": "2.0.x",
+    "json-stringify-safe": "5.0.x"
   },
   "devDependencies": {
     "eslint": "4.19.1",

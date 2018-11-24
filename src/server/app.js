@@ -1,7 +1,7 @@
 const _ = require('lodash');
 const FS = require('fs');
 const Chokidar = require('chokidar');
-const { Server, Store } = require('./core');
+const { Server, Store, Logger } = require('./core');
 
 // The application path we wish to watch
 const appPath = `${__dirname}/app`;
@@ -28,7 +28,8 @@ const getDefaultInfo = (path) => {
 // A redux store to manage state
 const makeStore = () => {
   return new Store({
-    server: (state = new Server(), action) => {
+    app: (state = '', action) => {
+      if (action.type === 'app') return action.payload;
       return state;
     },
 
@@ -36,77 +37,66 @@ const makeStore = () => {
       const { absolutePath, subject } = getDefaultInfo(action.payload);
 
       switch (`${action.type}-${subject}`) {
-        case 'add-config.json':
+        case 'add-config.json': case 'change-config.json':
           return JSON.parse(FS.readFileSync(absolutePath));
         case 'unlink-config.json':
-          action.meta.state.server.stop();
           return {};
-        case 'change-config.json':
-          action.meta.state.server.stop();
-          return { _app: 'restart' };
-        case 'assign-config-undefined':
-          return Object.assign({}, state, action.payload);
         default:
           return state;
       }
     },
 
-    realms: (state = {}, action) => {
+    realms: (state = [], action) => {
       const { realmName, subject } = getDefaultInfo(action.payload);
 
       switch (`${action.type}-${subject}`) {
         case `addDir-${realmName}`:
-          return Object.assign({}, state, { [subject]: action.meta.state.server.addRealm(subject) });
+          return [...state, realmName];
         case `unlinkDir-${realmName}`:
-          return _.omit(state, subject);
+          return _.filter(state, realmName);
         default:
           return state;
       }
     },
 
-    streams: (state = {}, action) => {
+    streams: (state = [], action) => {
       const { realmName, streamName, subject } = getDefaultInfo(action.payload);
-      const options = _.get(action, `meta.state.config.streams.${streamName}`);
 
       switch (`${action.type}-${subject}`) {
         case `addDir-${streamName}`:
-          return Object.assign({}, state, { [subject]: action.meta.state.realms[realmName].addStream(subject, options) });
+          return [...state, { streamName, realmName }];
         case `unlinkDir-${streamName}`:
-          return _.omit(state, subject);
+          return _.filter(state, { streamName });
         default:
           return state;
       }
     },
 
-    translator: (state = null, action) => {
+    translators: (state = [], action) => {
       const { absolutePath, realmName, subject } = getDefaultInfo(action.payload);
 
       switch (`${action.type}-${subject}`) {
-        case 'add-translate.js': case 'change-translate.js':
-          action.meta.state.realms[realmName].setTranslator(requireModule(absolutePath));
-          return absolutePath;
-        case 'unlink-translate.js':
-          action.meta.state.realms[realmName].setTranslator({});
-          return null;
+        case 'add-translator.js':
+          return [...state, { realmName, translator: requireModule(absolutePath) }];
+        case 'unlink-translator.js':
+          return _.filter(state, { realmName });
+        case 'change-translator.js':
+          return [..._.filter(state, { realmName }), { realmName, translator: requireModule(absolutePath) }];
         default:
           return state;
       }
     },
 
-    listeners: (state = {}, action) => {
+    listeners: (state = [], action) => {
       const { absolutePath, streamName, realmName, subject } = getDefaultInfo(action.payload); // eslint-disable-line
-      const addListeners = (realm, stream, path) => Object.entries(requireModule(path)(realm)).map(([key, cb]) => stream.addEventListener(key, cb));
-      const removeListeners = listeners => listeners.map(l => l());
 
       switch (`${action.type}-${subject}`) {
         case 'add-listener.js':
-          return Object.assign({}, state, { [streamName]: addListeners(action.meta.state.realms[realmName], action.meta.state.streams[streamName], absolutePath) });
+          return [...state, { realmName, streamName, listener: requireModule(absolutePath) }];
         case 'unlink-listener.js':
-          removeListeners(state[streamName]);
-          return Object.assign({}, state, { [streamName]: [] });
+          return _.filter(state, { realmName, streamName });
         case 'change-listener.js':
-          removeListeners(state[streamName]);
-          return Object.assign({}, state, { [streamName]: addListeners(action.meta.state.realms[realmName], action.meta.state.streams[streamName], absolutePath) });
+          return [..._.filter(state, { realmName, streamName }), { realmName, streamName, listener: requireModule(absolutePath) }];
         default:
           return state;
       }
@@ -119,30 +109,63 @@ const watch = (store) => {
     store.dispatch({
       type: event,
       payload: path,
-      meta: { state: store.getState() },
     });
   }).on('ready', () => {
     store.dispatch({
-      type: 'assign-config',
-      payload: { _app: 'ready' },
+      type: 'app',
+      payload: 'ready',
     });
   });
 };
 
 const start = () => {
+  let [servers, unsubscribes] = [[], []];
   const store = makeStore();
   const watcher = watch(store);
 
-  store.subscribeTo('config._app', (newVal, oldVal) => {
+  store.subscribeTo('app', (newVal, oldVal) => {
     if (newVal === 'ready') {
-      // Hydrate data
-      const { server, config } = store.getState();
-      server.start(config.server.port);
-    } else if (newVal === 'restart') {
-      watcher.close();
-      start();
+      const { config, realms, translators, streams, listeners } = store.getState(); // eslint-disable-line
+
+      // Realms
+      realms.forEach((realmName) => {
+        const server = new Server();
+        const realm = server.addRealm(realmName);
+        realm.setTranslator(_.get(_.find(translators, { realmName }), 'translator'));
+
+        // Streams
+        _.filter(streams, { realmName }).forEach(({ streamName }) => {
+          const stream = realm.addStream(streamName, _.get(config, `streams.${streamName}`));
+
+          // Listeners
+          _.filter(listeners, { realmName, streamName }).forEach(({ listener }) => {
+            unsubscribes = Object.entries(listener(realm)).map(([key, cb]) => stream.addEventListener(key, cb));
+          });
+        });
+
+        // Save references
+        servers.push(server);
+        server.start(config.server.port);
+      });
+
+      store.subscribe(() => {
+        servers.forEach(server => server.stop());
+        unsubscribes.forEach(unsubscribe => unsubscribe());
+        watcher.close();
+        servers = [];
+        unsubscribes = [];
+        start();
+      });
     }
   });
 };
+
+process.on('unhandledRejection', (e) => {
+  Logger.error(['unhandledRejection'], e);
+});
+
+process.on('uncaughtException', (e) => {
+  Logger.error(['uncaughtException'], e);
+});
 
 start();

@@ -1,4 +1,6 @@
-// const Logger = require('./logger');
+const Logger = require('./logger');
+
+const types = ['auth', 'prep', 'do'];
 
 module.exports = class Stream {
   constructor(options = { queueSize: 0, canInterrupt: false }) {
@@ -9,22 +11,17 @@ module.exports = class Stream {
 
   addEventListener(event, fn) {
     const [type, action] = event.toLowerCase().split('::');
-
-    switch (type) {
-      case 'auth': case 'prep':
-        if (fn.constructor.name === 'AsyncFunction') throw new Error(`Event listener for "${event}" must be synchronous`);
-        break;
-      case 'do': break;
-      default: throw new Error(`Event type "${type}" not supported`);
-    }
-
     const fqn = `${type}::${action}`;
+
+    // Validation
+    if (types.indexOf(type) === -1) return Logger.error(new Error(`Unknown stream type "${type}"`));
+    if ((type === 'auth' || type === 'prep') && fn.constructor.name === 'AsyncFunction') return Logger.error(new Error(`Event listener for "${event}" must be synchronous`));
+
+    // Add listener
     this.listeners[fqn] = this.listeners[fqn] || new Set();
     this.listeners[fqn].add(fn);
 
-    return () => {
-      this.listeners[event].delete(fn);
-    };
+    return () => this.listeners[event].delete(fn); // unsubcribe
   }
 
   async process(userId, intent) {
@@ -49,20 +46,4 @@ module.exports = class Stream {
 
     this.queues[userId].shift();
   }
-
-  // next() {
-
-  // }
-
-  // pause() {
-
-  // }
-
-  // resume() {
-
-  // }
-
-  // end() {
-
-  // }
 };

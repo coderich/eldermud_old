@@ -22,7 +22,7 @@ module.exports = (input) => {
         return [{
           type: 'unknown',
           stream: 'chat',
-          payload: { text: `Unknown command "${input.payload.text}"` },
+          payload: { text: `"${input.payload.text}"` },
         }];
       }
 

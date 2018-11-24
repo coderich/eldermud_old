@@ -1,3 +1,6 @@
+const _ = require('lodash');
+const Stringify = require('json-stringify-safe');
+
 const internals = {
   map: {
     trace: 'log',
@@ -8,7 +11,10 @@ const internals = {
     fatal: 'error',
   },
   log: (level, tags, msg) => {
-    console.log(tags, msg);
+    const realTags = _.uniq(_.flatten(_.concat([], level, msg ? tags : null)));
+    const realMsg = msg || tags;
+    const logMsg = realMsg instanceof Error ? Stringify(realMsg.stack) : realMsg;
+    console.log(realTags, logMsg);
   },
 };
 

@@ -1,3 +1,4 @@
+const Logger = require('./logger');
 const Store = require('./store');
 const CoreStream = require('./stream');
 
@@ -8,7 +9,15 @@ module.exports = class Realm {
 
     this.realm = IO.of(`/${namespace}`).on('connection', (socket) => {
       socket.on('input', (input) => {
-        if (this.translator) this.translator(input).forEach(intent => this.streams[intent.stream].process(socket.id, intent));
+        if (this.translator) {
+          this.translator(input).forEach((intent) => {
+            if (this.streams[intent.stream]) {
+              this.streams[intent.stream].process(socket.id, intent);
+            } else {
+              Logger.error(new Error(`Unable to find stream "${intent.stream}"`));
+            }
+          });
+        }
       });
 
       socket.on('disconnect', (reason) => {
