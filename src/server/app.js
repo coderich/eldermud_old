@@ -1,99 +1,103 @@
+const _ = require('lodash');
 const Chokidar = require('chokidar');
-const { Server } = require('./core');
+const { Server, Store } = require('./core');
 
-(async () => {
-  const port = 3000;
-  const appPath = `${__dirname}/app`;
-  const server = new Server();
+// The application path we wish to watch
+const appPath = `${__dirname}/app`;
 
-  const defaultWatch = (path) => {
-    return Chokidar.watch(`${path}/*`, {
-      ignored: /(^|[/\\])\../,
-      persistent: true,
-      depth: 0,
-    });
+const requireModule = (path) => {
+  delete require.cache[require.resolve(path)];
+  return require(path); // eslint-disable-line
+};
+
+const getDefaultInfo = (path) => {
+  if (!path) return {};
+
+  return {
+    absolutePath: path,
+    relativePath: path.substr(appPath.length),
+    get realmName() { return this.relativePath.split('/')[1]; },
+    get streamName() { return this.relativePath.split('/')[2]; },
+    get subject() { return this.relativePath.split('/').pop(); },
   };
+};
 
-  const requireModule = (path) => {
-    delete require.cache[require.resolve(path)];
-    return require(path); // eslint-disable-line
-  };
+// A redux store to manage state
+const store = new Store({
+  server: (state = new Server(), action) => {
+    return state;
+  },
 
-  const onRealmChange = (path) => {
-    const name = path.split('/').pop().toLowerCase();
-    return server.addRealm(name);
-  };
+  config: (state = { port: 3000 }, action) => {
+    return state;
+  },
 
-  const onTranslateChange = (realm, path) => {
-    realm.setTranslator(requireModule(path));
-  };
+  realms: (state = {}, action) => {
+    const { realmName, subject } = getDefaultInfo(action.payload);
 
-  const onStreamChange = (realm, path) => {
-    const name = path.split('/').pop().toLowerCase();
-    return realm.addStream(name);
-  };
-
-  const onListenerChange = (realm, stream, path) => {
-    const listeners = requireModule(path)(realm);
-
-    Object.keys(listeners).forEach((key) => {
-      stream.addEventListener(key, listeners[key]);
-    });
-  };
-
-  const onConfigChange = (realm, path) => {
-    const file = path.split('/').pop().toLowerCase();
-
-    switch (file) {
-      case 'translate.js':
-        return onTranslateChange(realm, path);
-      case 'config.json':
-        break;
+    switch (`${action.type}-${subject}`) {
+      case `addDir-${realmName}`:
+        return Object.assign({}, state, { [subject]: action.meta.state.server.addRealm(subject) });
+      case `unlinkDir-${realmName}`:
+        return _.omit(state, subject);
       default:
-        break;
+        return state;
     }
-  };
+  },
 
-  defaultWatch(appPath).on('addDir', (realmPath) => {
-    const realm = onRealmChange(realmPath);
+  streams: (state = {}, action) => {
+    const { realmName, streamName, subject } = getDefaultInfo(action.payload);
 
-    defaultWatch(realmPath).on('add', (configPath) => {
-      onConfigChange(realm, configPath);
-    }).on('addDir', (streamPath) => {
-      const stream = onStreamChange(realm, streamPath);
+    switch (`${action.type}-${subject}`) {
+      case `addDir-${streamName}`:
+        return Object.assign({}, state, { [subject]: action.meta.state.realms[realmName].addStream(subject) });
+      case `unlinkDir-${streamName}`:
+        return _.omit(state, subject);
+      default:
+        return state;
+    }
+  },
 
-      defaultWatch(streamPath).on('add', (listenerPath) => {
-        onListenerChange(realm, stream, listenerPath);
-      });
-    });
-  }).on('ready', () => {
-    server.start(port);
+  translator: (state = null, action) => {
+    const { absolutePath, realmName, subject } = getDefaultInfo(action.payload);
+
+    switch (`${action.type}-${subject}`) {
+      case 'add-translate.js': case 'change-translate.js':
+        action.meta.state.realms[realmName].setTranslator(requireModule(absolutePath));
+        return absolutePath;
+      case 'unlink-translate.js':
+        action.meta.state.realms[realmName].setTranslator({});
+        return null;
+      default:
+        return state;
+    }
+  },
+
+  listeners: (state = {}, action) => {
+    const { absolutePath, streamName, realmName, subject } = getDefaultInfo(action.payload); // eslint-disable-line
+    const addListeners = (realm, stream, path) => Object.entries(requireModule(path)(realm)).map(([key, cb]) => stream.addEventListener(key, cb));
+    const removeListeners = stream => [];
+
+    switch (`${action.type}-${subject}`) {
+      case 'add-listener.js':
+        return Object.assign({}, state, { [streamName]: addListeners(action.meta.state.realms[realmName], action.meta.state.streams[streamName], absolutePath) });
+      case 'unlink-listener.js':
+        return Object.assign({}, state, { [streamName]: removeListeners() });
+      default:
+        return state;
+    }
+  },
+});
+
+// Watch for any changes to folder and dispatch an event
+Chokidar.watch(`${appPath}/**`, { ignored: /(^|[/\\])\../, persistent: true }).on('all', (event, path) => {
+  store.dispatch({
+    type: event,
+    payload: path,
+    meta: { state: store.getState() },
   });
-
-  // const eldermudStore = eldermudRealm.createStore({
-  //   data: (state = {}, action) => {
-  //     return Object.assign({}, state, action.payload);
-  //   },
-  // }, {
-  //   persist: true,
-  // });
-
-  // eldermudStore.subscribeTo('data.name', (newVal, oldVal) => {
-  //   console.log(newVal, oldVal);
-  // });
-
-  // eldermudStore.dispatch({
-  //   type: 'blah',
-  //   payload: { name: 'Richard' },
-  // });
-
-  // eldermudStore.dispatch({
-  //   type: 'blah',
-  //   payload: { name: 'Anthony' },
-  // });
-
-  // eldermudStore.dispatch({
-  //   type: 'blah',
-  //   payload: { name: 'Livolsi' },
-  // });
-})();
+}).on('ready', () => {
+  // All configurations has been loaded, start the server
+  const { server, config } = store.getState();
+  server.start(config.port);
+});
