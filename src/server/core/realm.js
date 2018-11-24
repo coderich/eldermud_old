@@ -4,6 +4,7 @@ const CoreStream = require('./stream');
 
 module.exports = class Realm {
   constructor(IO, namespace, options = {}) {
+    this.stores = {};
     this.streams = {};
     this.namespace = namespace;
 
@@ -30,13 +31,40 @@ module.exports = class Realm {
     this.translator = cb;
   }
 
-  createStore(reducers, options) { // eslint-disable-line
-    return new Store(reducers, options);
+  addStore(name, reducers, options) {
+    this.stores[name] = new Store(reducers, options);
+    return this.stores[name];
+  }
+
+  getStore(name) {
+    return this.stores[name];
+  }
+
+  remStore(name) {
+    try {
+      this.store[name].purge();
+      delete this.stores[name];
+    } catch (e) {
+      Logger.error(e);
+    }
   }
 
   addStream(name, options) {
     this.streams[name] = new CoreStream(options);
     return this.streams[name];
+  }
+
+  getStream(name) {
+    return this.streams[name];
+  }
+
+  remStream(name) {
+    try {
+      this.streams[name].purge();
+      delete this.streams[name];
+    } catch (e) {
+      Logger.error(e);
+    }
   }
 
   broadcast(message) {

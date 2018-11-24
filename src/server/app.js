@@ -33,7 +33,7 @@ const makeStore = () => {
       return state;
     },
 
-    config: (state = {}, action) => {
+    config: (state = null, action) => {
       const { absolutePath, subject } = getDefaultInfo(action.payload);
 
       switch (`${action.type}-${subject}`) {
@@ -87,15 +87,30 @@ const makeStore = () => {
       }
     },
 
+    reducers: (state = [], action) => {
+      const { absolutePath, realmName, subject } = getDefaultInfo(action.payload);
+
+      switch (`${action.type}-${subject}`) {
+        case 'add-reducers.js':
+          return [...state, { realmName, reducers: requireModule(absolutePath) }];
+        case 'unlink-reducers.js':
+          return _.filter(state, { realmName });
+        case 'change-reducers.js':
+          return [..._.filter(state, { realmName }), { realmName, reducers: requireModule(absolutePath) }];
+        default:
+          return state;
+      }
+    },
+
     listeners: (state = [], action) => {
       const { absolutePath, streamName, realmName, subject } = getDefaultInfo(action.payload); // eslint-disable-line
 
       switch (`${action.type}-${subject}`) {
-        case 'add-listener.js':
+        case 'add-listeners.js':
           return [...state, { realmName, streamName, listener: requireModule(absolutePath) }];
-        case 'unlink-listener.js':
+        case 'unlink-listeners.js':
           return _.filter(state, { realmName, streamName });
-        case 'change-listener.js':
+        case 'change-listeners.js':
           return [..._.filter(state, { realmName, streamName }), { realmName, streamName, listener: requireModule(absolutePath) }];
         default:
           return state;
@@ -119,43 +134,62 @@ const watch = (store) => {
 };
 
 const start = () => {
-  let [servers, unsubscribes] = [[], []];
+  let unsubscribes = [];
+  const server = new Server();
   const store = makeStore();
   const watcher = watch(store);
 
   store.subscribeTo('app', (newVal, oldVal) => {
     if (newVal === 'ready') {
-      const { config, realms, translators, streams, listeners } = store.getState(); // eslint-disable-line
+      try {
+        const { config, realms, translators, reducers, streams, listeners } = store.getState(); // eslint-disable-line
 
-      // Realms
-      realms.forEach((realmName) => {
-        const server = new Server();
-        const realm = server.addRealm(realmName);
-        realm.setTranslator(_.get(_.find(translators, { realmName }), 'translator'));
+        // Validation
+        if (!config) throw new Error('No configuration file found');
 
-        // Streams
-        _.filter(streams, { realmName }).forEach(({ streamName }) => {
-          const stream = realm.addStream(streamName, _.get(config, `streams.${streamName}`));
+        // Realms
+        realms.forEach((realmName) => {
+          try {
+            const translator = _.get(_.find(translators, { realmName }), 'translator');
+            const reducer = _.get(_.find(reducers, { realmName }), 'reducers');
 
-          // Listeners
-          _.filter(listeners, { realmName, streamName }).forEach(({ listener }) => {
-            unsubscribes = Object.entries(listener(realm)).map(([key, cb]) => stream.addEventListener(key, cb));
-          });
+            // Validation
+            if (!reducer) throw new Error(`No reducers found for realm "${realmName}"`);
+            if (!translator) throw new Error(`No translator found for realm "${realmName}"`);
+
+            // Create Realm
+            const realm = server.addRealm(realmName);
+            realm.setTranslator(translator(realm));
+            realm.addStore('app', reducer(realm), config.store);
+
+            // Add Streams
+            _.filter(streams, { realmName }).forEach(({ streamName }) => {
+              const stream = realm.addStream(streamName, _.get(config, `streams.${streamName}`));
+
+              // Add Stream Listeners
+              _.filter(listeners, { realmName, streamName }).forEach(({ listener }) => {
+                unsubscribes = Object.entries(listener(realm)).map(([key, cb]) => stream.subscribeTo(key, cb));
+              });
+            });
+          } catch (e) {
+            Logger.error(e);
+          }
         });
 
-        // Save references
-        servers.push(server);
+        // Start the server
         server.start(config.server.port);
-      });
 
-      store.subscribe(() => {
-        servers.forEach(server => server.stop());
-        unsubscribes.forEach(unsubscribe => unsubscribe());
-        watcher.close();
-        servers = [];
-        unsubscribes = [];
-        start();
-      });
+        // Listene for state change; rinse and repeat
+        store.subscribe(() => {
+          unsubscribes.forEach(unsubscribe => unsubscribe());
+          server.stop();
+          watcher.close();
+          unsubscribes = [];
+          start();
+        });
+      } catch (e) {
+        Logger.error(e);
+      }
     }
   });
 };

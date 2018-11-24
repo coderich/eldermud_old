@@ -4,24 +4,27 @@ const types = ['auth', 'prep', 'do'];
 
 module.exports = class Stream {
   constructor(options = { queueSize: 0, canInterrupt: false }) {
-    this.listeners = {};
     this.queues = {};
+    this.subscribers = {};
     this.options = options;
   }
 
-  addEventListener(event, fn) {
-    const [type, action] = event.toLowerCase().split('::');
+  subscribeTo(key, cb) {
+    const [type, action] = key.toLowerCase().split('::');
     const fqn = `${type}::${action}`;
 
     // Validation
     if (types.indexOf(type) === -1) return Logger.error(new Error(`Unknown stream type "${type}"`));
-    if ((type === 'auth' || type === 'prep') && fn.constructor.name === 'AsyncFunction') return Logger.error(new Error(`Event listener for "${event}" must be synchronous`));
+    if ((type === 'auth' || type === 'prep') && cb.constructor.name === 'AsyncFunction') return Logger.error(new Error(`Subscription to "${fqn}" must be a synchronous callback`));
 
-    // Add listener
-    this.listeners[fqn] = this.listeners[fqn] || new Set();
-    this.listeners[fqn].add(fn);
+    // Subscribe
+    if (Object.prototype.hasOwnProperty.call(this.subscribers, fqn)) this.subscribers[fqn].push(cb);
+    else this.subscribers[fqn] = [cb];
+    return () => { this.subscribers[fqn] = this.subscribers[fqn].filter(s => s !== cb); }; // Unsubscribe
+  }
 
-    return () => this.listeners[event].delete(fn); // unsubcribe
+  purge() {
+    this.subscribers.forEach(unsubscribe => unsubscribe());
   }
 
   async process(userId, intent) {
@@ -29,19 +32,19 @@ module.exports = class Stream {
     if (this.queues[userId].length > this.options.queueSize) return;
     this.queues[userId].push(intent);
 
-    // Listeners which may want to prevent this intent from becoming an action
-    const auth = [...this.listeners[`auth::${intent.type}`] || new Set()].reduce((prev, fn) => {
+    // Subscriber which may want to prevent this intent from becoming an action
+    const auth = [...this.subscribers[`auth::${intent.type}`] || new Set()].reduce((prev, fn) => {
       return prev && fn(userId, intent.payload);
     }, true);
 
     if (auth) {
-      // Listeners responsible preparing/altering the payload (which becomes the action)
-      const payload = [...this.listeners[`prep::${intent.type}`] || new Set()].reduce((prev, fn) => {
+      // Subscriber responsible preparing/altering the payload (which becomes the action)
+      const payload = [...this.subscribers[`prep::${intent.type}`] || new Set()].reduce((prev, fn) => {
         return fn(userId, intent.payload, prev);
       }, Object.assign({}, intent.payload));
 
-      // Listeners responsible for performing the action (async and in parallel. eg. Move & Save Position)
-      await Promise.all([...this.listeners[`do::${intent.type}`] || new Set()].map(fn => fn(userId, payload)));
+      // Subscriber responsible for performing the action (async and in parallel. eg. Move & Save Position)
+      await Promise.all([...this.subscribers[`do::${intent.type}`] || new Set()].map(fn => fn(userId, payload)));
     }
 
     this.queues[userId].shift();

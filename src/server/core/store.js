@@ -6,6 +6,7 @@ const { createStore, combineReducers } = require('redux');
 module.exports = class Store {
   constructor(reducers, options = {}) {
     this.subscribers = {};
+    this.reducers = reducers;
     this.store = createStore(combineReducers(reducers));
     this.prevState = this.store.getState();
 
@@ -35,6 +36,15 @@ module.exports = class Store {
     }
   }
 
+  getReducers() {
+    return this.reducers;
+  }
+
+  setReducers(reducers) {
+    this.store.replaceReducer(combineReducers(reducers));
+    this.reducers = reducers;
+  }
+
   getState() {
     return this.store.getState();
   }
@@ -51,5 +61,9 @@ module.exports = class Store {
     if (Object.prototype.hasOwnProperty.call(this.subscribers, key)) this.subscribers[key].push(cb);
     else this.subscribers[key] = [cb];
     return () => { this.subscribers[key] = this.subscribers[key].filter(s => s !== cb); }; // Unsubscribe
+  }
+
+  purge() {
+    this.subscribers.forEach(unsubscribe => unsubscribe());
   }
 };
