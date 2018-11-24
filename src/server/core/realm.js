@@ -3,12 +3,11 @@ const Store = require('./store');
 const CoreStream = require('./stream');
 
 module.exports = class Realm {
-  constructor(IO, namespace, options = {}) {
+  constructor(server, namespace, options = {}) {
     this.stores = {};
     this.streams = {};
-    this.namespace = namespace;
 
-    this.realm = IO.of(`/${namespace}`).on('connection', (socket) => {
+    this.realm = server.getNamespace(`/${namespace}`).on('connection', (socket) => {
       socket.on('input', (input) => {
         if (this.translator) {
           this.translator(input).forEach((intent) => {

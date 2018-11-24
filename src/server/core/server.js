@@ -1,13 +1,11 @@
 const _ = require('lodash');
 const SocketIO = require('socket.io');
 const Logger = require('./logger');
-const Realm = require('./realm');
 const Store = require('./store');
 
 module.exports = class Server {
   constructor(options = {}) {
     this.started = false;
-    this.realms = new Set();
     this.IO = new SocketIO(options);
 
     this.store = new Store({
@@ -29,12 +27,12 @@ module.exports = class Server {
     });
   }
 
-  addRealm(namespace, options) {
-    if (!namespace) throw new Error('Server.addRealm requires a namespace');
-    if (this.realms.has(namespace)) throw new Error(`Server.addRealm namespace "${namespace}" already in use`);
+  getClient(id) {
+    return this.store.getState()[id];
+  }
 
-    this.realms.add(namespace);
-    return new Realm(this.IO, namespace, options);
+  getNamespace(namespace) {
+    return this.IO.of(namespace);
   }
 
   async start(port, options = {}) {

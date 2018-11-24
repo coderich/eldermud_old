@@ -1,7 +1,7 @@
 const _ = require('lodash');
 const FS = require('fs');
 const Chokidar = require('chokidar');
-const { Server, Store, Logger } = require('./core');
+const { Server, Realm, Store, Logger } = require('./core'); // eslint-disable-line
 
 // The application path we wish to watch
 const appPath = `${__dirname}/app`;
@@ -158,7 +158,7 @@ const start = () => {
             if (!translator) throw new Error(`No translator found for realm "${realmName}"`);
 
             // Create Realm
-            const realm = server.addRealm(realmName);
+            const realm = new Realm(server, realmName);
             realm.setTranslator(translator(realm));
             realm.addStore('app', reducer(realm), config.store);
 
