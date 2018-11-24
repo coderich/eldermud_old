@@ -1,20 +1,20 @@
 module.exports = (realm) => {
   return {
-    'auth::gos': (userId, payload) => {
-      return Boolean(payload.text && payload.text.length);
+    'auth::gos': (intent) => {
+      return Boolean(intent.payload.text && intent.payload.text.length);
     },
 
-    'do::gos': (userId, payload) => {
-      realm.broadcastFrom(userId, {
+    'do::gos': (intent) => {
+      realm.broadcastFrom(intent.meta.socketId, {
         type: 'info',
-        payload: { text: `Gossip: ${payload.text}` },
+        payload: { text: `Gossip: ${intent.payload.text}` },
       });
     },
 
-    'do::unknown': async (userId, payload) => {
-      realm.broadcastFrom(userId, {
+    'do::unknown': async (intent) => {
+      realm.broadcastFrom(intent.meta.socketId, {
         type: 'info',
-        payload: { text: `${payload.text}` },
+        payload: { text: `${intent.payload.text}` },
       });
     },
   };

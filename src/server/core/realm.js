@@ -3,49 +3,18 @@ const Store = require('./store');
 const CoreStream = require('./stream');
 
 module.exports = class Realm {
-  constructor(server, namespace, options = {}) {
-    this.stores = {};
+  constructor(options = {}) {
     this.streams = {};
-
-    this.realm = server.getNamespace(`/${namespace}`).on('connection', (socket) => {
-      socket.on('input', (input) => {
-        if (this.translator) {
-          this.translator(input).forEach((intent) => {
-            if (this.streams[intent.stream]) {
-              this.streams[intent.stream].process(socket.id, intent);
-            } else {
-              Logger.error(new Error(`Unable to find stream "${intent.stream}"`));
-            }
-          });
-        }
-      });
-
-      socket.on('disconnect', (reason) => {
-        socket.removeAllListeners();
-      });
-    });
+    this.started = false;
+    this.options = options;
   }
 
   setTranslator(cb) {
     this.translator = cb;
   }
 
-  addStore(name, reducers, options) {
-    this.stores[name] = new Store(reducers, options);
-    return this.stores[name];
-  }
-
-  getStore(name) {
-    return this.stores[name];
-  }
-
-  remStore(name) {
-    try {
-      this.store[name].purge();
-      delete this.stores[name];
-    } catch (e) {
-      Logger.error(e);
-    }
+  getStore() {
+    return this.store;
   }
 
   addStream(name, options) {
@@ -71,13 +40,51 @@ module.exports = class Realm {
   }
 
   broadcastTo(socketId, message) {
-    if (this.realm.connected[socketId]) this.realm.connected[socketId].emit('output', message);
+    this.realm.to(socketId).emit('output', message);
+    // if (this.realm.connected[socketId]) this.realm.connected[socketId].emit('output', message);
   }
 
   broadcastFrom(socketId, message) {
-    Object.keys(this.realm.connected).forEach((sid) => {
-      const socket = this.realm.connected[sid];
-      if (socket.id !== socketId) socket.emit('output', message);
+    this.realm.connected[socketId].broadcast.emit('output', message);
+    // Object.keys(this.realm.connected).forEach((sid) => {
+    //   const socket = this.realm.connected[sid];
+    //   if (socket.id !== socketId) socket.emit('output', message);
+    // });
+  }
+
+  start(namespace, server, reducers) {
+    if (this.started) return; this.started = true;
+
+    this.store = new Store(reducers);
+
+    this.realm = server.getNamespace(`/realm/${namespace}`).on('connection', (socket) => {
+      const client = Object.assign({}, server.getClient(socket.client.id), { socketId: socket.id });
+
+      this.store.dispatch({
+        type: 'CLIENT_CONNECT',
+        payload: client,
+      });
+
+      socket.on('disconnect', (reason) => {
+        socket.removeAllListeners();
+
+        this.store.dispatch({
+          type: 'CLIENT_DISCONNECT',
+          payload: client,
+        });
+      });
+
+      socket.on('input', (input) => {
+        if (this.translator) {
+          this.translator(input).forEach((intent) => {
+            if (this.streams[intent.stream]) {
+              this.streams[intent.stream].process(Object.assign(intent, { meta: client }));
+            } else {
+              Logger.error(new Error(`Unable to find stream "${intent.stream}"`));
+            }
+          });
+        }
+      });
     });
   }
 };

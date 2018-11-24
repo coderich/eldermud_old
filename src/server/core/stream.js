@@ -27,26 +27,27 @@ module.exports = class Stream {
     this.subscribers.forEach(unsubscribe => unsubscribe());
   }
 
-  async process(userId, intent) {
-    this.queues[userId] = this.queues[userId] || [];
-    if (this.queues[userId].length > this.options.queueSize) return;
-    this.queues[userId].push(intent);
+  async process(intent) {
+    const { clientId } = intent.meta;
+    this.queues[clientId] = this.queues[clientId] || [];
+    if (this.queues[clientId].length > this.options.queueSize) return;
+    this.queues[clientId].push(intent);
 
     // Subscriber which may want to prevent this intent from becoming an action
     const auth = [...this.subscribers[`auth::${intent.type}`] || new Set()].reduce((prev, fn) => {
-      return prev && fn(userId, intent.payload);
+      return prev && fn(intent);
     }, true);
 
     if (auth) {
       // Subscriber responsible preparing/altering the payload (which becomes the action)
-      const payload = [...this.subscribers[`prep::${intent.type}`] || new Set()].reduce((prev, fn) => {
-        return fn(userId, intent.payload, prev);
-      }, Object.assign({}, intent.payload));
+      const action = [...this.subscribers[`prep::${intent.type}`] || new Set()].reduce((prev, fn) => {
+        return fn(intent, prev);
+      }, intent);
 
       // Subscriber responsible for performing the action (async and in parallel. eg. Move & Save Position)
-      await Promise.all([...this.subscribers[`do::${intent.type}`] || new Set()].map(fn => fn(userId, payload)));
+      await Promise.all([...this.subscribers[`do::${intent.type}`] || new Set()].map(fn => fn(action)));
     }
 
-    this.queues[userId].shift();
+    this.queues[clientId].shift();
   }
 };

@@ -3,7 +3,7 @@ const Readline = require('readline');
 
 const ReadInterface = Readline.createInterface({ input: process.stdin, output: process.stdout });
 const ServerIO = IO('http://localhost:3000');
-const EldermudIO = IO('http://localhost:3000/eldermud');
+const EldermudIO = IO('http://localhost:3000/realm/eldermud');
 
 ServerIO.on('request', (event, cb) => {
   cb(new Date().getTime());

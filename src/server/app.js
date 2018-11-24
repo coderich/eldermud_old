@@ -158,9 +158,9 @@ const start = () => {
             if (!translator) throw new Error(`No translator found for realm "${realmName}"`);
 
             // Create Realm
-            const realm = new Realm(server, realmName);
+            const realm = new Realm();
             realm.setTranslator(translator(realm));
-            realm.addStore('app', reducer(realm), config.store);
+            realm.start(realmName, server, reducer(realm));
 
             // Add Streams
             _.filter(streams, { realmName }).forEach(({ streamName }) => {

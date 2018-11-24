@@ -9,18 +9,20 @@ module.exports = class Server {
     this.IO = new SocketIO(options);
 
     this.store = new Store({
-      clients: (clients = {}, action) => {
+      clients: (state = {}, action) => {
+        const clientId = _.get(action, 'payload.clientId');
+
         switch (action.type.toUpperCase()) {
           case 'CLIENT_CONNECT':
-            return Object.assign({}, clients, { [action.payload.clientId]: { loggedIn: false } });
+            return Object.assign({}, state, { [clientId]: { clientId, loggedIn: false } });
           case 'CLIENT_DISCONNECT':
-            return _.omit(clients, action.payload.clientId);
+            return _.omit(state, clientId);
           case 'CLIENT_LOGIN':
-            return Object.assign({}, clients, { [action.payload.clientId]: { loggedIn: true, user: action.payload.user } });
+            return Object.assign({}, state, { [clientId]: { clientId, loggedIn: true, user: action.payload.user } });
           case 'CLIENT_LOGOUT':
-            return Object.assign({}, clients, { [action.payload.clientId]: { loggedIn: false } });
+            return Object.assign({}, state, { [clientId]: { clientId, loggedIn: false } });
           default: {
-            return clients;
+            return state;
           }
         }
       },
@@ -28,7 +30,7 @@ module.exports = class Server {
   }
 
   getClient(id) {
-    return this.store.getState()[id];
+    return this.store.getState().clients[id];
   }
 
   getNamespace(namespace) {
@@ -62,6 +64,8 @@ module.exports = class Server {
         });
 
         socket.on('disconnect', (reason) => {
+          socket.removeAllListeners();
+
           this.store.dispatch({
             type: 'CLIENT_DISCONNECT',
             payload: { clientId: socket.client.id },
