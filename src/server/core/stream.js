@@ -21,10 +21,10 @@ module.exports = class Stream {
     const fqn = `${type}::${action}`;
     this.listeners[fqn] = this.listeners[fqn] || new Set();
     this.listeners[fqn].add(fn);
-  }
 
-  removeEventListener(event, fn) {
-    this.listeners[event].delete(fn);
+    return () => {
+      this.listeners[event].delete(fn);
+    };
   }
 
   async process(userId, intent) {

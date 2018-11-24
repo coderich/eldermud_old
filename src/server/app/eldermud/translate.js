@@ -1,8 +1,8 @@
 module.exports = (input) => {
   const { text } = input.payload;
-  const index = text.indexOf(' ');
-  const type = text.substr(0, index).trim();
-  const phrase = text.substr(index).trim();
+  const words = text.split(' ');
+  const [type, ...remainder] = [words.shift(), ...words];
+  const phrase = remainder.join(' ');
 
   switch (type.toLowerCase()) {
     case 'gos':
@@ -11,8 +11,14 @@ module.exports = (input) => {
         stream: 'chat',
         payload: { text: phrase },
       }];
+    case 'a':
+      return [{
+        type,
+        stream: 'combat',
+        payload: { target: phrase },
+      }];
     default:
-      if (phrase.length) {
+      if (type.length) {
         return [{
           type: 'unknown',
           stream: 'chat',

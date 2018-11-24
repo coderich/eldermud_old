@@ -68,4 +68,8 @@ module.exports = class Server {
       });
     });
   }
+
+  async stop() {
+    this.IO.close();
+  }
 };
