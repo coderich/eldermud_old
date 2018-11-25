@@ -33,21 +33,26 @@ module.exports = class Stream {
     if (this.queues[clientId].length > this.options.queueSize) return;
     this.queues[clientId].push(intent);
 
-    // Subscriber which may want to prevent this intent from becoming an action
-    const auth = [...this.subscribers[`auth::${intent.type}`] || new Set()].reduce((prev, fn) => {
-      return prev && fn(intent);
-    }, true);
+    try {
+      // Subscriber which may want to prevent this intent from becoming an action
+      const auth = [...this.subscribers[`auth::${intent.type}`] || new Set()].reduce((prev, fn) => {
+        return prev && fn(intent);
+      }, true);
 
-    if (auth) {
-      // Subscriber responsible preparing/altering the payload (which becomes the action)
-      const action = [...this.subscribers[`prep::${intent.type}`] || new Set()].reduce((prev, fn) => {
-        return fn(intent, prev);
-      }, intent);
+      if (auth) {
+        // Subscriber responsible preparing/altering the payload (which becomes the action)
+        const action = [...this.subscribers[`prep::${intent.type}`] || new Set()].reduce((prev, fn) => {
+          return fn(intent, prev);
+        }, intent);
 
-      // Subscriber responsible for performing the action (async and in parallel. eg. Move & Save Position)
-      await Promise.all([...this.subscribers[`do::${intent.type}`] || new Set()].map(fn => fn(action)));
+        // Subscriber responsible for performing the action (async and in parallel. eg. Move & Save Position)
+        await Promise.all([...this.subscribers[`do::${intent.type}`] || new Set()].map(fn => fn(action)));
+      }
+
+      this.queues[clientId].shift();
+    } catch (e) {
+      Logger.error(e);
+      this.queues[clientId].shift();
     }
-
-    this.queues[clientId].shift();
   }
 };

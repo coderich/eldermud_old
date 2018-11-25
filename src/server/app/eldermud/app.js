@@ -22,10 +22,10 @@ module.exports = async (realm) => {
       });
 
       subscribers[client.clientId] = [unsubscribe];
-      store.dispatch({ type: 'ADD_PLAYER', payload: { client, location: { map: 'atlanta', room: 1 } } });
+      store.dispatch({ type: 'ADD_PLAYER', payload: { id: client.clientId, client, location: { map: 'atlanta', room: 1 } } });
     } else if (event === 'disconnect') {
       subscribers[client.clientId].forEach(s => s());
-      store.dispatch({ type: 'REM_PLAYER', payload: { client } });
+      store.dispatch({ type: 'REMOVE_PLAYER', payload: { id: client.clientId } });
     }
   });
 };

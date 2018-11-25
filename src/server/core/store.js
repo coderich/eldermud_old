@@ -8,7 +8,7 @@ module.exports = class Store {
     this.subscribers = {};
     this.reducers = reducers;
     this.store = createStore(combineReducers(reducers));
-    this.prevState = this.store.getState();
+    this.prevState = _.cloneDeep(this.store.getState());
 
     // Subscribe to changes, notify listeners when a change happens
     this.store.subscribe(() => {
@@ -23,7 +23,7 @@ module.exports = class Store {
         }
       });
 
-      this.prevState = currState;
+      this.prevState = _.cloneDeep(currState);
     });
 
     // If persistent, listen for data changes and save it

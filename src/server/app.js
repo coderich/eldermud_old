@@ -150,11 +150,12 @@ const start = () => {
             // Create Server & Realm
             const server = new Server();
             const realm = new Realm(server, realmName);
-            const streamListeners = listener(realm);
             realm.createStore(reducer(realm));
             realm.setTranslator(translator(realm));
 
             // Add Streams
+            const streamListeners = listener(realm);
+
             (config.streams || []).forEach(({ name: streamName, options }) => {
               const stream = realm.addStream(streamName, options);
 
@@ -177,10 +178,10 @@ const start = () => {
         });
 
         // Listene for state change; rinse and repeat
-        store.subscribe(() => {
-          watcher.close();
+        store.subscribe(async () => {
+          await watcher.close();
           unsubscribes.forEach(unsubscribe => unsubscribe());
-          servers.forEach(server => server.stop());
+          await Promise.all(servers.map(server => server.stop()));
           servers = []; unsubscribes = [];
           start();
         });

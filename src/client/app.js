@@ -22,18 +22,17 @@ const clearLine = () => {
   process.stdout.clearLine();
 };
 
-const write = (text) => {
+const write = (text, suffix = '> ') => {
   clearLine();
   process.stdout.cursorTo(0);
-  process.stdout.write(`> ${text}`);
+  process.stdout.write(`${suffix}${text}`);
 };
 
 const writeLine = (line) => {
   clearLine();
   process.stdout.cursorTo(0);
-  process.stdout.write(`| ${line}\n`);
+  process.stdout.write(`${line}\n`);
   write(query);
-  // console.log(line);
 };
 
 process.stdin.on('keypress', (chunk, key) => {
@@ -63,17 +62,21 @@ process.stdin.on('keypress', (chunk, key) => {
 // };
 
 EldermudIO.on('connect', () => {
+  write(query);
 });
 
 EldermudIO.on('output', (event) => {
   switch (event.type.toLowerCase()) {
     case 'info':
-      writeLine(event.payload.text);
+      writeLine(`==== ${event.payload.text} ====`);
+      break;
+    case 'speach':
+      writeLine(`# ${event.payload.text}`);
       break;
     case 'brief':
-      writeLine(event.payload.name);
-      writeLine(event.payload.description);
-      writeLine(`Exits: ${Object.keys(event.payload.exits).join(', ')}`);
+      writeLine(`| ${event.payload.name}`);
+      writeLine(`| ${event.payload.description}`);
+      writeLine(`| Exits: ${Object.keys(event.payload.exits).join(', ')}`);
       break;
     default:
       break;

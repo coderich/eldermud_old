@@ -13,7 +13,10 @@
       }
     },
     {
-      "name": "navigation"
+      "name": "navigation",
+      "options": {
+        "queueSize": 3
+      }
     }
   ]
 }
