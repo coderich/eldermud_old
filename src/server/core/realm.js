@@ -3,14 +3,20 @@ const Store = require('./store');
 const CoreStream = require('./stream');
 
 module.exports = class Realm {
-  constructor(options = {}) {
+  constructor(server, namespace, options = {}) {
+    this.server = server;
+    this.namespace = namespace;
+    this.options = options;
     this.streams = {};
     this.started = false;
-    this.options = options;
   }
 
   setTranslator(cb) {
     this.translator = cb;
+  }
+
+  createStore(reducers) {
+    this.store = new Store(reducers);
   }
 
   getStore() {
@@ -47,26 +53,18 @@ module.exports = class Realm {
     this.realm.connected[socketId].broadcast.emit('output', message);
   }
 
-  start(namespace, server, reducers) {
+  start(cb) {
     if (this.started) return; this.started = true;
 
-    this.store = new Store(reducers);
+    this.realm = this.server.getNamespace(`/realm/${this.namespace}`).on('connection', (socket) => {
+      const client = Object.assign({}, this.server.getClient(socket.client.id), { socketId: socket.id });
 
-    this.realm = server.getNamespace(`/realm/${namespace}`).on('connection', (socket) => {
-      const client = Object.assign({}, server.getClient(socket.client.id), { socketId: socket.id });
-
-      this.store.dispatch({
-        type: 'CLIENT_CONNECT',
-        payload: client,
-      });
+      // Notify app and store of client
+      if (cb) cb('connection', client);
 
       socket.on('disconnect', (reason) => {
         socket.removeAllListeners();
-
-        this.store.dispatch({
-          type: 'CLIENT_DISCONNECT',
-          payload: client,
-        });
+        if (cb) cb('disconnect', client);
       });
 
       socket.on('input', (input) => {

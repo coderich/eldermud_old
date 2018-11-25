@@ -60,7 +60,7 @@ module.exports = class Store {
   subscribeTo(key, cb) {
     if (Object.prototype.hasOwnProperty.call(this.subscribers, key)) this.subscribers[key].push(cb);
     else this.subscribers[key] = [cb];
-    return () => { this.subscribers[key] = this.subscribers[key].filter(s => s !== cb); }; // Unsubscribe
+    return () => { this.subscribers[key] = this.subscribers[key].filter(s => s !== cb); };
   }
 
   purge() {

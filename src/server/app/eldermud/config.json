@@ -11,6 +11,9 @@
       "options": {
         "queueSize": 2
       }
+    },
+    {
+      "name": "navigation"
     }
   ]
 }

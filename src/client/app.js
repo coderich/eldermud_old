@@ -34,6 +34,11 @@ EldermudIO.on('output', (event) => {
     case 'info':
       console.log(event.payload.text);
       break;
+    case 'brief':
+      console.log(event.payload.name);
+      console.log(event.payload.description);
+      console.log('Exits: ', event.payload.exits);
+      break;
     default:
       break;
   }

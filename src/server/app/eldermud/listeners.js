@@ -32,5 +32,14 @@ module.exports = (realm) => {
         });
       },
     },
+
+    navigation: {
+      'do::move': async (intent) => {
+        realm.broadcastFrom(intent.meta.socketId, {
+          type: 'info',
+          payload: { text: `${intent.payload.text}` },
+        });
+      },
+    },
   };
 };

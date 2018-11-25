@@ -134,23 +134,25 @@ const start = () => {
         // Realms
         realms.forEach((realmName) => {
           try {
-            const server = new Server();
+            const app = requireModule(`${appPath}/${realmName}/app`);
             const config = _.get(_.find(configs, { realmName }), 'config');
             const translator = _.get(_.find(translators, { realmName }), 'translator');
             const reducer = _.get(_.find(reducers, { realmName }), 'reducers');
             const listener = _.get(_.find(listeners, { realmName }), 'listeners');
 
             // Validation
+            if (!app) throw new Error(`No app found for realm "${realmName}"`);
             if (!config) throw new Error(`No config found for realm "${realmName}"`);
             if (!reducer) throw new Error(`No reducers found for realm "${realmName}"`);
             if (!translator) throw new Error(`No translator found for realm "${realmName}"`);
             if (!listener) throw new Error(`No listener found for realm "${realmName}"`);
 
-            // Create Realm
-            const realm = new Realm();
+            // Create Server & Realm
+            const server = new Server();
+            const realm = new Realm(server, realmName);
             const streamListeners = listener(realm);
+            realm.createStore(reducer(realm));
             realm.setTranslator(translator(realm));
-            realm.start(realmName, server, reducer(realm));
 
             // Add Streams
             (config.streams || []).forEach(({ name: streamName, options }) => {
@@ -162,9 +164,13 @@ const start = () => {
               });
             });
 
-            // Start the server
+
+            // Start the main server
             servers.push(server);
             server.start(config.server.port);
+
+            // Pass off to the app
+            app(realm);
           } catch (e) {
             Logger.error(e);
           }
