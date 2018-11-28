@@ -9,13 +9,13 @@
     {
       "name": "combat",
       "options": {
-        "queueSize": 2
+        "queueSize": 3
       }
     },
     {
       "name": "navigation",
       "options": {
-        "queueSize": 3
+        "queueSize": 10
       }
     }
   ]

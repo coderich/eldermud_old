@@ -27,11 +27,15 @@ module.exports = class Stream {
     this.subscribers.forEach(unsubscribe => unsubscribe());
   }
 
-  async process(intent) {
+  async process(intent, passthru = false) {
     const { clientId } = intent.meta;
     this.queues[clientId] = this.queues[clientId] || [];
-    if (this.queues[clientId].length > this.options.queueSize) return;
-    this.queues[clientId].push(intent);
+
+    if (!passthru) {
+      if (this.queues[clientId].length > this.options.queueSize) return;
+      this.queues[clientId].push(intent);
+      if (this.queues[clientId].length > 1) return;
+    }
 
     try {
       // Subscriber which may want to prevent this intent from becoming an action
@@ -49,10 +53,14 @@ module.exports = class Stream {
         await Promise.all([...this.subscribers[`do::${intent.type}`] || new Set()].map(fn => fn(action)));
       }
 
-      this.queues[clientId].shift();
+      this.queues[clientId].splice(0, 1);
+      const nextIntent = this.queues[clientId][0];
+      if (nextIntent) this.process(nextIntent, true);
     } catch (e) {
       Logger.error(e);
-      this.queues[clientId].shift();
+      this.queues[clientId].splice(0, 1);
+      const nextIntent = this.queues[clientId][0];
+      if (nextIntent) this.process(nextIntent, true);
     }
   }
 };

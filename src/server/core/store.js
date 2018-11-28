@@ -8,7 +8,8 @@ module.exports = class Store {
     this.subscribers = {};
     this.reducers = reducers;
     this.store = createStore(combineReducers(reducers));
-    this.prevState = _.cloneDeep(this.store.getState());
+    // this.prevState = _.cloneDeep(this.store.getState());
+    this.prevState = {};
 
     // Subscribe to changes, notify listeners when a change happens
     this.store.subscribe(() => {
@@ -21,9 +22,9 @@ module.exports = class Store {
         if (!_.isEqual(prevValue, currValue)) {
           this.subscribers[key].forEach(cb => cb(currValue, prevValue));
         }
-      });
 
-      this.prevState = _.cloneDeep(currState);
+        _.set(this.prevState, key, _.cloneDeep(_.get(currState, key)));
+      });
     });
 
     // If persistent, listen for data changes and save it
@@ -58,6 +59,7 @@ module.exports = class Store {
   }
 
   subscribeTo(key, cb) {
+    if (!_.has(this.prevState, key)) _.set(this.prevState, key, _.cloneDeep(_.get(this.store.getState(), key)));
     if (Object.prototype.hasOwnProperty.call(this.subscribers, key)) this.subscribers[key].push(cb);
     else this.subscribers[key] = [cb];
     return () => { this.subscribers[key] = this.subscribers[key].filter(s => s !== cb); };
