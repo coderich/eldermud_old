@@ -14,7 +14,7 @@
     "json-stringify-safe": "5.0.x"
   },
   "devDependencies": {
-    "eslint": "4.19.1",
+    "eslint": "5.6.0",
     "eslint-config-airbnb": "17.0.x",
     "eslint-config-airbnb-base": "13.0.0",
     "eslint-plugin-import": "2.13.0"

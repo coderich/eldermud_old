@@ -38,7 +38,6 @@ module.exports = async (realm) => {
 
       subscribers[client.clientId] = [unsubscribe];
       store.dispatch({ type: 'ADD_PLAYER', payload: { id: client.clientId, client, location: { map: 'atlanta', room: 1 } } });
-      console.log(realm.getModel('PLAYER', client.clientId).getRoom().getPlayers());
     } else if (event === 'disconnect') {
       subscribers[client.clientId].forEach(s => s());
       store.dispatch({ type: 'REMOVE_PLAYER', payload: { id: client.clientId } });
