@@ -4,8 +4,8 @@ import Grid from '@material-ui/core/Grid';
 class Cmp extends Component {
   render() {
     return (
-      <Grid container style={{height: '100vh', background:'silver'}}>
-        <Grid item xs={3} style={{background:'lightgrey'}}>
+      <Grid container style={{height: '100vh', background: 'silver'}}>
+        <Grid item xs={3} style={{background: 'lightgrey'}}>
           {this.props.left}
         </Grid>
 
@@ -23,7 +23,7 @@ class Cmp extends Component {
           </Grid>
         </Grid>
 
-        <Grid item xs={3} style={{background:'lightgrey'}}>
+        <Grid item xs={3} style={{background: 'lightgrey'}}>
           {this.props.right}
         </Grid>
       </Grid>
